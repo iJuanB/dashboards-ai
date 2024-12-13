@@ -42,6 +42,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@/components/ui/sidebar"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 const data = {
   nav: [
@@ -84,7 +85,7 @@ export function SettingsDialog({
                       <SidebarMenuItem key={item.name}>
                         <SidebarMenuButton
                           asChild
-                          isActive={item.name === "Messages & media"}
+                          isActive={item.name === "Appearance"}
                         >
                           <a href="#">
                             <item.icon />
@@ -99,7 +100,7 @@ export function SettingsDialog({
             </SidebarContent>
           </Sidebar>
           <main className="flex h-[480px] flex-1 flex-col overflow-hidden">
-            <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+            <header className="flex h-16 shrink-0 items-center gap-2">
               <div className="flex items-center gap-2 px-4">
                 <Breadcrumb>
                   <BreadcrumbList>
@@ -108,19 +109,16 @@ export function SettingsDialog({
                     </BreadcrumbItem>
                     <BreadcrumbSeparator className="hidden md:block" />
                     <BreadcrumbItem>
-                      <BreadcrumbPage>Messages & media</BreadcrumbPage>
+                      <BreadcrumbPage>Appearance</BreadcrumbPage>
                     </BreadcrumbItem>
                   </BreadcrumbList>
                 </Breadcrumb>
               </div>
             </header>
-            <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 pt-0">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="aspect-video max-w-3xl rounded-xl bg-muted/50"
-                />
-              ))}
+            <div className="flex flex-1 flex-col gap-4 p-4">
+              <div className="rounded-lg border p-4">
+                <ThemeToggle />
+              </div>
             </div>
           </main>
         </SidebarProvider>
