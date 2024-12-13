@@ -1,5 +1,7 @@
 "use client"
 
+import * as React from "react"
+
 import {
   BadgeCheck,
   Bell,
@@ -64,6 +66,7 @@ import {
 } from "@/components/ui/sidebar"
 
 import Link from "next/link"
+import { SettingsDialog } from "@/components/settings-dialog"
 
 const data = {
   user: {
@@ -74,13 +77,13 @@ const data = {
   navMain: [
     {
       title: "Playground",
-      url: "#",
+      url: "/dashboard/playground",
       icon: SquareTerminal,
       isActive: true,
       items: [
         {
           title: "History",
-          url: "/dashboard/settings",
+          url: "/dashboard/",
         },
         {
           title: "Starred",
@@ -138,24 +141,7 @@ const data = {
       title: "Settings",
       url: "#",
       icon: Settings2,
-      items: [
-        {
-          title: "General",
-          url: "#",
-        },
-        {
-          title: "Team",
-          url: "#",
-        },
-        {
-          title: "Billing",
-          url: "#",
-        },
-        {
-          title: "Limits",
-          url: "#",
-        },
-      ],
+      isDialog: true,
     },
   ],
   navSecondary: [
@@ -190,8 +176,18 @@ const data = {
 }
 
 export default function SidebarMain() {
+  const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
+
+  const handleItemClick = (item: any) => {
+    if (item.title === "Settings") {
+      setIsSettingsOpen(true);
+      return;
+    }
+  };
+
   return (
-    <Sidebar variant="inset">
+    <>
+      <Sidebar variant="inset">
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>
@@ -220,11 +216,22 @@ export default function SidebarMain() {
                   defaultOpen={item.isActive}
                 >
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild tooltip={item.title}>
-                      <Link href={item.url}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </Link>
+                    <SidebarMenuButton 
+                      asChild={item.title !== "Settings"} 
+                      tooltip={item.title}
+                      onClick={() => handleItemClick(item)}
+                    >
+                      {item.title === "Settings" ? (
+                        <div className="flex items-center gap-2">
+                          <item.icon />
+                          <span>{item.title}</span>
+                        </div>
+                      ) : (
+                        <Link href={item.url}>
+                          <item.icon />
+                          <span>{item.title}</span>
+                        </Link>
+                      )}
                     </SidebarMenuButton>
                     {item.items?.length ? (
                       <>
@@ -406,5 +413,7 @@ export default function SidebarMain() {
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
+      <SettingsDialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
+    </>
   )
 }

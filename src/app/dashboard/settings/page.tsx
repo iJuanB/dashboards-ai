@@ -1,8 +1,9 @@
 import React from 'react'
+import { SettingsDialog } from '@/components/settings-dialog'
 
 function Settings() {
   return (
-    <div>Settings</div>
+    <SettingsDialog open={true} onOpenChange={() => {}} />
   )
 }
 
