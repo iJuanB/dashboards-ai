@@ -76,17 +76,17 @@ const data = {
   },
   navMain: [
     {
-      title: "Playground",
-      url: "/dashboard/playground",
+      title: "Data",
+      url: "/dashboard/data",
       icon: SquareTerminal,
       isActive: true,
       items: [
         {
-          title: "History",
+          title: "",
           url: "/dashboard/",
         },
         {
-          title: "Starred",
+          title: "Edit Data",
           url: "#",
         },
         {
@@ -115,7 +115,7 @@ const data = {
       ],
     },
     {
-      title: "Documentation",
+      title: "Dashboards",
       url: "#",
       icon: BookOpen,
       items: [
