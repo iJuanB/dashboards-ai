@@ -1,156 +1,73 @@
 "use client"
 
 import * as React from "react"
-import { Label, Pie, PieChart, Sector } from "recharts"
-import { PieSectorDataItem } from "recharts/types/polar/Pie"
+import { Label, Pie, PieChart } from "recharts"
+import { TrendingUp } from "lucide-react"
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import {
-  ChartConfig,
-  ChartContainer,
-  ChartStyle,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+interface CircleNumberProps {
+  data: Array<{
+    categoria: string;
+    valor: number;
+  }>;
+  config: {
+    categories: string;
+    y: string;
+  };
+}
 
-const desktopData = [
-  { month: "january", desktop: 186, fill: "var(--color-january)" },
-  { month: "february", desktop: 305, fill: "var(--color-february)" },
-  { month: "march", desktop: 237, fill: "var(--color-march)" },
-  { month: "april", desktop: 173, fill: "var(--color-april)" },
-  { month: "may", desktop: 209, fill: "var(--color-may)" },
-]
+const CATEGORY_COLORS = [
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
+];
 
-const chartConfig = {
-  visitors: {
-    label: "Visitors",
-  },
-  desktop: {
-    label: "Desktop",
-  },
-  mobile: {
-    label: "Mobile",
-  },
-  january: {
-    label: "January",
-    color: "hsl(var(--chart-1))",
-  },
-  february: {
-    label: "February",
-    color: "hsl(var(--chart-2))",
-  },
-  march: {
-    label: "March",
-    color: "hsl(var(--chart-3))",
-  },
-  april: {
-    label: "April",
-    color: "hsl(var(--chart-4))",
-  },
-  may: {
-    label: "May",
-    color: "hsl(var(--chart-5))",
-  },
-} satisfies ChartConfig
+export default function CircleNumber({ data, config }: CircleNumberProps) {
+  const processedData = React.useMemo(() => {
+    return data.map((item: { categoria: string; valor: number }, index) => ({
+      name: item.categoria,
+      value: item.valor,
+      fill: CATEGORY_COLORS[index % CATEGORY_COLORS.length]
+    }));
+  }, [data]);
 
-export default function Component() {
-  const id = "pie-interactive"
-  const [activeMonth, setActiveMonth] = React.useState(desktopData[0].month)
+  const total = data.reduce((sum, item) => sum + item.valor, 0);
 
-  const activeIndex = React.useMemo(
-    () => desktopData.findIndex((item) => item.month === activeMonth),
-    [activeMonth]
-  )
-  const months = React.useMemo(() => desktopData.map((item) => item.month), [])
+  const chartConfig = Object.fromEntries([
+    ['value', { label: 'Valor' }],
+    ...data.map((item, index) => [
+      item.categoria,
+      {
+        label: item.categoria,
+        color: CATEGORY_COLORS[index % CATEGORY_COLORS.length]
+      }
+    ])
+  ]);
 
   return (
-    <Card data-chart={id} className="flex flex-col">
-      <ChartStyle id={id} config={chartConfig} />
-      <CardHeader className="flex-row items-start space-y-0 pb-0">
-        <div className="grid gap-1">
-          <CardTitle>Pie Chart - Interactive</CardTitle>
-          <CardDescription>January - June 2024</CardDescription>
-        </div>
-        <Select value={activeMonth} onValueChange={setActiveMonth}>
-          <SelectTrigger
-            className="ml-auto h-7 w-[130px] rounded-lg pl-2.5"
-            aria-label="Select a value"
-          >
-            <SelectValue placeholder="Select month" />
-          </SelectTrigger>
-          <SelectContent align="end" className="rounded-xl">
-            {months.map((key) => {
-              const config = chartConfig[key as keyof typeof chartConfig]
-
-              if (!config) {
-                return null
-              }
-
-              return (
-                <SelectItem
-                  key={key}
-                  value={key}
-                  className="rounded-lg [&_span]:flex"
-                >
-                  <div className="flex items-center gap-2 text-xs">
-                    <span
-                      className="flex h-3 w-3 shrink-0 rounded-sm"
-                      style={{
-                        backgroundColor: `var(--color-${key})`,
-                      }}
-                    />
-                    {config?.label}
-                  </div>
-                </SelectItem>
-              )
-            })}
-          </SelectContent>
-        </Select>
+    <Card className="w-full h-full">
+      <CardHeader className="items-center pb-2">
+        <CardTitle>Ventas por Categoría</CardTitle>
+        <CardDescription>Distribución actual</CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-1 justify-center pb-0">
-        <ChartContainer
-          id={id}
-          config={chartConfig}
-          className="mx-auto aspect-square w-full max-w-[300px]"
-        >
-          <PieChart>
+      <CardContent className="flex-1">
+        <ChartContainer config={chartConfig} className="w-full h-full">
+          <PieChart width={400} height={300}>
             <ChartTooltip
               cursor={false}
               content={<ChartTooltipContent hideLabel />}
             />
             <Pie
-              data={desktopData}
-              dataKey="desktop"
-              nameKey="month"
+              data={processedData}
+              dataKey="value"
+              nameKey="name"
               innerRadius={60}
               strokeWidth={5}
-              activeIndex={activeIndex}
-              activeShape={({
-                outerRadius = 0,
-                ...props
-              }: PieSectorDataItem) => (
-                <g>
-                  <Sector {...props} outerRadius={outerRadius + 10} />
-                  <Sector
-                    {...props}
-                    outerRadius={outerRadius + 25}
-                    innerRadius={outerRadius + 12}
-                  />
-                </g>
-              )}
+              cx="50%"
+              cy="50%"
             >
               <Label
                 content={({ viewBox }) => {
@@ -167,14 +84,14 @@ export default function Component() {
                           y={viewBox.cy}
                           className="fill-foreground text-3xl font-bold"
                         >
-                          {desktopData[activeIndex].desktop.toLocaleString()}
+                          ${total.toLocaleString()}
                         </tspan>
                         <tspan
                           x={viewBox.cx}
                           y={(viewBox.cy || 0) + 24}
                           className="fill-muted-foreground"
                         >
-                          Visitors
+                          Total Ventas
                         </tspan>
                       </text>
                     )
@@ -185,6 +102,14 @@ export default function Component() {
           </PieChart>
         </ChartContainer>
       </CardContent>
+      <CardFooter className="flex-col gap-2 text-sm">
+        <div className="flex items-center gap-2 font-medium leading-none">
+          Crecimiento del 5.2% este mes <TrendingUp className="h-4 w-4" />
+        </div>
+        <div className="leading-none text-muted-foreground">
+          Mostrando ventas totales por categoría
+        </div>
+      </CardFooter>
     </Card>
-  )
+  );
 }

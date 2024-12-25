@@ -2,271 +2,262 @@
 
 import React, { useEffect, useState } from 'react'
 import * as XLSX from 'xlsx'
-import { CartesianGrid, Line, LineChart as RechartsLineChart, XAxis, YAxis, LabelList, PieChart, Pie, Label } from "recharts"
-import { ChartDataPoint } from '@/types/chart-types'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { TrendingUp } from 'lucide-react'
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import RevenueCard from "@/app/charts/components/revenue-card"
+import SalesCard from "@/app/charts/components/sales-card"
+import LineChart from "@/app/charts/components/line-chart"
+import CircleNumber from "@/app/charts/components/circle-number"
+import AreaChartInteractive from "@/app/charts/components/area-chart-interactive"
 
-interface APIResponse {
-  success: boolean
-  result: {
-    x: string
-    y: string
-  }
+// Definir la interfaz para la respuesta de Flask
+interface DashboardConfig {
+  template_id: number;
+  revenue_value: {
+    kpi: string;
+    variables: string[];
+  };
+  sales: {
+    kpi: string;
+    variables: string[];
+  };
+  "area-chart-interactive": {
+    date: string;
+    kpi: string;
+    variables: string[];
+    label: string;
+  };
+  "line-chart-label": {
+    date: string;
+    kpi: string;
+    variables: string[];
+  };
+  "pie-chart-text": {
+    categories: string;
+    kpi: string;
+    variables: string[];
+  };
 }
 
-const chartConfig = {
-  desktop: {
-    label: "Ventas",
-    color: "hsl(217, 91%, 60%)",
-  },
-} 
-
 function TestPlayground() {
-  const [chartData, setChartData] = useState<ChartDataPoint[]>([])
-  const [filteredData, setFilteredData] = useState<ChartDataPoint[]>([])
-  const [selectedYear, setSelectedYear] = useState<string>('2022')
-  const [availableYears, setAvailableYears] = useState<string[]>([])
-  const [variables, setVariables] = useState<{
-    x: string, 
-    y: string[], 
-    labels: { [key: string]: string }
-  }>({ 
-    x: '', 
-    y: [], 
-    labels: {} 
-  })
+  const [dashboardConfig, setDashboardConfig] = useState<DashboardConfig | null>(null);
+  const [excelData, setExcelData] = useState<any[] | null>(null);
+  const [revenueData, setRevenueData] = useState<number | null>(null);
+  const [salesData, setSalesData] = useState<number | null>(null);
+  const [lineChartData, setLineChartData] = useState<any[] | null>(null);
+  const [pieChartData, setPieChartData] = useState<any | null>(null);
+  const [areaChartData, setAreaChartData] = useState<any[] | null>(null);
+  const [selectedYear, setSelectedYear] = useState('2023');
+  const availableYears = ['2023', '2024']; // O calcularlos desde los datos
 
+  // Función para enviar datos a Flask
+  const sendDataToFlask = async (endpoint: string, data: any[]) => {
+    try {
+      // Transformar los datos al formato deseado
+      const transformedData = data.reduce((acc, item) => {
+        Object.entries(item).forEach(([key, value]) => {
+          if (!acc[key]) {
+            acc[key] = [];
+          }
+          // Convertir fechas de Excel a formato mes/dia/año
+          if (key === 'Fecha Venta' || key === 'date') {
+            // Convertir número de Excel a fecha JavaScript
+            const date = new Date((value as number - 25569) * 86400 * 1000);
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const year = date.getFullYear();
+            acc[key].push(`${month}/${day}/${year}`);
+          } else {
+            acc[key].push(value);
+          }
+        });
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      console.log(`Datos transformados para ${endpoint}:`, transformedData);
+
+      const response = await fetch(`http://127.0.0.1:5000/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(transformedData)
+      });
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Error enviando datos a ${endpoint}:`, error);
+      return null;
+    }
+  };
+
+  // Cargar configuración y datos del Excel
   useEffect(() => {
-    async function processData() {
+    async function loadData() {
       try {
+        // 1. Obtener configuración de Flask
+        console.log('Haciendo petición a Flask...');
         
-        const flaskResponse = await fetch('http://192.168.20.8:5000/analyze_dashboard', {
+        const response = await fetch('http://127.0.0.1:4000/analyze', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ data: {} })
-        })
+        });
+        
+        const config: DashboardConfig = await response.json();
+        console.log('Respuesta de Flask:', {
+          configCompleto: config,
+          revenueVariables: config.revenue_value?.variables,
+          salesVariables: config.sales?.variables,
+          areaChartVariables: config["area-chart-interactive"]?.variables,
+          lineChartVariables: config["line-chart-label"]?.variables,
+          pieChartVariables: config["pie-chart-text"]?.variables
+        });
+        
+        setDashboardConfig(config);
 
-        const response = await fetch('/data/db.xlsx')
-        const arrayBuffer = await response.arrayBuffer()
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' })
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
-        let jsonData = XLSX.utils.sheet_to_json(firstSheet)
-
-        // Limpiar nombres de columnas
-        jsonData = jsonData.map(row => {
-          const cleanRow: Record<string, unknown> = {}
-          Object.entries(row as Record<string, unknown>).forEach(([key, value]) => {
-            const cleanKey = key.trim().replace(/[" ]/g, '')
-            cleanRow[cleanKey] = value
-          })
-          return cleanRow
-        })
-
-        console.log('Datos del Excel:', jsonData)
-
-        // Llamada a Flask
-
-        const data: APIResponse = await flaskResponse.json()
-        console.log('Respuesta de Flask:', data)
-
-        if (data.success) {
-          setChartData(jsonData as ChartDataPoint[])
-          setVariables({
-            x: data.result.x,
-            y: [data.result.y],
-            labels: { [data.result.y]: "Ventas" }
-          })
-
-          // Extraer años únicos directamente
-          const years = [...new Set((jsonData as Record<string, unknown>[]).map(item => 
-            item.año?.toString()
-          ))].filter((year): year is string => year !== undefined).sort()
-          
-          setAvailableYears(years)
-          setSelectedYear(years[0])
-        }
+        // 2. Cargar Excel
+        const excelResponse = await fetch('/data/Ventas_Minoristas_2023.xlsx');
+        const arrayBuffer = await excelResponse.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(worksheet);
+        setExcelData(data);
 
       } catch (error) {
-        console.error('Error processing data:', error)
+        console.error('Error:', error);
       }
     }
 
-    processData()
-  }, [])
+    loadData();
+  }, []);
 
-  // Filtrar datos cuando cambie el año seleccionado
   useEffect(() => {
-    if (chartData.length > 0 && selectedYear) {
-      const filtered = chartData.filter(item => 
-        item.año?.toString() === selectedYear
-      )
-      setFilteredData(filtered)
+    if (dashboardConfig && excelData) {
+      const sendAllData = async () => {
+        // Revenue Card
+        const revenueData = excelData.map(row => 
+          dashboardConfig.revenue_value.variables.reduce((acc, variable) => {
+            acc[variable] = row[variable];
+            return acc;
+          }, {} as Record<string, any>)
+        );
+        console.log('Enviando a revenue_card:', revenueData);
+        const revenueResponse = await sendDataToFlask('revenue_card', revenueData);
+        setRevenueData(revenueResponse);
+
+        // Sales Card
+        const salesData = excelData.map(row => 
+          dashboardConfig.sales.variables.reduce((acc, variable) => {
+            acc[variable] = row[variable];
+            return acc;
+          }, {} as Record<string, any>)
+        );
+        console.log('Enviando a sales:', salesData);
+        const salesResponse = await sendDataToFlask('sales', salesData);
+        setSalesData(salesResponse);
+
+        // Line Chart
+        const lineChartData = excelData.map(row => ({
+          date: row[dashboardConfig["line-chart-label"].date],
+          ...dashboardConfig["line-chart-label"].variables.reduce((acc, variable) => {
+            acc[variable] = row[variable];
+            return acc;
+          }, {} as Record<string, any>)
+        }));
+        console.log('Enviando a line-chart:', lineChartData);
+        const lineResponse = await sendDataToFlask('line-chart', lineChartData);
+        setLineChartData(lineResponse);
+
+        // Pie Chart
+        const pieChartData = excelData.map(row => ({
+          category: row[dashboardConfig["pie-chart-text"].categories],
+          ...dashboardConfig["pie-chart-text"].variables.reduce((acc, variable) => {
+            acc[variable] = row[variable];
+            return acc;
+          }, {} as Record<string, any>)
+        }));
+        console.log('Enviando a Pie-chart:', pieChartData);
+        const pieResponse = await sendDataToFlask('Pie-chart', pieChartData);
+        setPieChartData(pieResponse);
+
+        // Area Chart
+        const areaChartData = excelData.map(row => ({
+          date: row[dashboardConfig["area-chart-interactive"].date],
+          ...dashboardConfig["area-chart-interactive"].variables.reduce((acc, variable) => {
+            acc[variable] = row[variable];
+            return acc;
+          }, {} as Record<string, any>)
+        }));
+        console.log('Enviando a area-chart-interactive:', areaChartData);
+        const areaResponse = await sendDataToFlask('area-chart-interactive', areaChartData);
+        setAreaChartData(areaResponse);
+      };
+
+      sendAllData();
     }
-  }, [chartData, selectedYear])
+  }, [dashboardConfig, excelData]);
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Análisis de Ventas</CardTitle>
-              <CardDescription>{`${variables.x} vs ${variables.y.join(', ')}`}</CardDescription>
-            </div>
-            <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Selecciona un año" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableYears.map(year => (
-                  <SelectItem key={year} value={year}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <ChartContainer config={chartConfig}>
-            <RechartsLineChart
-              data={filteredData}
-              margin={{ top: 20, left: 40, right: 20, bottom: 20 }}
-              height={350}
-            >
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey={variables.x}
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                tickFormatter={(value) => value.toString().slice(0, 3)}
-              />
-              <YAxis />
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent indicator="line" />}
-              />
-              {variables.y.map((variable, index) => (
-                <Line
-                  key={variable}
-                  type="monotone"
-                  dataKey={variable}
-                  name={variables.labels?.[variable] || variable}
-                  stroke="hsl(217, 91%, 60%)"
-                  strokeWidth={3}
-                  dot={{
-                    fill: "hsl(217, 91%, 60%)",
-                    r: 4,
-                  }}
-                  activeDot={{
-                    r: 6,
-                    fill: "hsl(217, 91%, 60%)",
-                  }}
-                >
-                  <LabelList
-                    position="top"
-                    offset={12}
-                    className="fill-foreground"
-                    fontSize={12}
-                  />
-                </Line>
-              ))}
-            </RechartsLineChart>
-          </ChartContainer>
-        </CardContent>
-        <CardFooter className="flex-col items-start gap-2 text-sm">
-          <div className="flex gap-2 font-medium leading-none">
-            Tendencia al alza <TrendingUp className="h-4 w-4" />
-          </div>
-          <div className="leading-none text-muted-foreground">
-            Mostrando datos para el año {selectedYear}
-          </div>
-        </CardFooter>
-      </Card>
+    <div className="h-screen p-4">
+      <div className="grid grid-cols-3 gap-4 h-[400px]">
+        <div className="space-y-4">
+          <RevenueCard 
+            data={[{ value: revenueData ?? 0 }]} 
+            variable="value"
+          />
+          <SalesCard 
+            data={[{ value: salesData ?? 0 }]}
+            variable="value"
+          />
+        </div>
 
-      <Card data-chart="pie-interactive">
-        <CardHeader className="flex-row items-start space-y-0 pb-0">
-          <div className="grid gap-1">
-            <CardTitle>Distribución de Ventas</CardTitle>
-            <CardDescription>{`${variables.x} - ${selectedYear}`}</CardDescription>
-          </div>
-          <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger className="ml-auto h-7 w-[130px] rounded-lg pl-2.5">
-              <SelectValue placeholder="Seleccionar año" />
-            </SelectTrigger>
-            <SelectContent align="end" className="rounded-xl">
-              {availableYears.map((year) => (
-                <SelectItem key={year} value={year} className="rounded-lg">
-                  {year}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </CardHeader>
-        <CardContent className="flex flex-1 justify-center pb-0">
-          <ChartContainer
-            config={chartConfig}
-            className="mx-auto aspect-square w-full max-w-[300px]"
-          >
-            <PieChart>
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent hideLabel />}
-              />
-              <Pie
-                data={filteredData}
-                dataKey={variables.y[0]}
-                nameKey={variables.x}
-                innerRadius={60}
-                strokeWidth={5}
-                fill="hsl(217, 91%, 60%)"
-              >
-                <Label
-                  content={({ viewBox }) => {
-                    if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-                      const total = filteredData.reduce(
-                        (sum, item) => sum + Number(item[variables.y[0]]), 
-                        0
-                      )
-                      return (
-                        <text
-                          x={viewBox.cx}
-                          y={viewBox.cy}
-                          textAnchor="middle"
-                          dominantBaseline="middle"
-                        >
-                          <tspan
-                            x={viewBox.cx}
-                            y={viewBox.cy}
-                            className="fill-foreground text-3xl font-bold"
-                          >
-                            {total.toLocaleString()}
-                          </tspan>
-                          <tspan
-                            x={viewBox.cx}
-                            y={(viewBox.cy || 0) + 24}
-                            className="fill-muted-foreground"
-                          >
-                            Total Ventas
-                          </tspan>
-                        </text>
-                      )
-                    }
-                  }}
-                />
-              </Pie>
-            </PieChart>
-          </ChartContainer>
-        </CardContent>
-      </Card>
+        <div className="h-full">
+          <LineChart 
+            data={lineChartData?.map(item => ({
+              date: item.fecha,
+              value: item.valor
+            })) || []}
+            variables={{
+              x: 'date',
+              y: ['value'],
+              labels: { value: 'Ventas' }
+            }}
+            selectedYear={selectedYear}
+            availableYears={availableYears}
+            onYearChange={setSelectedYear}
+          />
+        </div>
+
+        <div className="h-full">
+          <CircleNumber 
+            data={pieChartData?.map((item: { categoria: string; valor: number }) => ({
+              categoria: item.categoria,
+              valor: item.valor
+            })) || []}
+            config={{
+              categories: 'categoria',
+              y: 'valor'
+            }}
+          />
+        </div>
+      </div>
+
+      <div className="h-[300px] mt-4">
+        <AreaChartInteractive 
+          data={areaChartData || []}
+          variables={{
+            x: 'date',
+            y: ['value'],
+            labels: {
+              label1: 'Ventas',
+              label2: 'Tendencia'
+            }
+          }}
+        />
+      </div>
     </div>
-  )
+  );
 }
 
-export default TestPlayground
+export default TestPlayground;
