@@ -8,11 +8,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 
 interface CircleNumberProps {
   data: Array<{
-    categoria: string;
+    category: string;
     valor: number;
   }>;
   config: {
-    categories: string;
+    category: string;
     y: string;
   };
 }
@@ -27,8 +27,8 @@ const CATEGORY_COLORS = [
 
 export default function CircleNumber({ data, config }: CircleNumberProps) {
   const processedData = React.useMemo(() => {
-    return data.map((item: { categoria: string; valor: number }, index) => ({
-      name: item.categoria,
+    return data.map((item: { category: string; valor: number }, index) => ({
+      name: item.category,
       value: item.valor,
       fill: CATEGORY_COLORS[index % CATEGORY_COLORS.length]
     }));
@@ -39,9 +39,9 @@ export default function CircleNumber({ data, config }: CircleNumberProps) {
   const chartConfig = Object.fromEntries([
     ['value', { label: 'Valor' }],
     ...data.map((item, index) => [
-      item.categoria,
+      item.category,
       {
-        label: item.categoria,
+        label: item.category,
         color: CATEGORY_COLORS[index % CATEGORY_COLORS.length]
       }
     ])

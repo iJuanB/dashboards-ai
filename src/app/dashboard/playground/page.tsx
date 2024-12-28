@@ -31,10 +31,33 @@ interface DashboardConfig {
     variables: string[];
   };
   "pie-chart-text": {
-    categories: string;
+    category: string;
     kpi: string;
     variables: string[];
   };
+}
+
+// Función para procesar los datos en formato de arrays
+function processData(data: any[]) {
+  if (!data || data.length === 0) return {};
+  
+  // Obtener todas las claves excepto 'date'
+  const keys = Object.keys(data[0]);
+  
+  // Crear objeto con arrays vacíos para cada clave
+  const result: Record<string, any[]> = {};
+  keys.forEach(key => {
+    result[key] = [];
+  });
+  
+  // Llenar los arrays con los valores
+  data.forEach(item => {
+    keys.forEach(key => {
+      result[key].push(item[key]);
+    });
+  });
+  
+  return result;
 }
 
 function TestPlayground() {
@@ -49,45 +72,27 @@ function TestPlayground() {
   const availableYears = ['2023', '2024']; // O calcularlos desde los datos
 
   // Función para enviar datos a Flask
-  const sendDataToFlask = async (endpoint: string, data: any[]) => {
+  async function sendDataToFlask(endpoint: string, data: any) {
     try {
-      // Transformar los datos al formato deseado
-      const transformedData = data.reduce((acc, item) => {
-        Object.entries(item).forEach(([key, value]) => {
-          if (!acc[key]) {
-            acc[key] = [];
-          }
-          // Convertir fechas de Excel a formato mes/dia/año
-          if (key === 'Fecha Venta' || key === 'date') {
-            // Convertir número de Excel a fecha JavaScript
-            const date = new Date((value as number - 25569) * 86400 * 1000);
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            const year = date.getFullYear();
-            acc[key].push(`${month}/${day}/${year}`);
-          } else {
-            acc[key].push(value);
-          }
-        });
-        return acc;
-      }, {} as Record<string, any[]>);
-
-      console.log(`Datos transformados para ${endpoint}:`, transformedData);
-
       const response = await fetch(`http://127.0.0.1:5000/${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(transformedData)
+        body: JSON.stringify(data),
       });
 
-      return await response.json();
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result;
     } catch (error) {
-      console.error(`Error enviando datos a ${endpoint}:`, error);
+      console.error('Error sending data to Flask:', error);
       return null;
     }
-  };
+  }
 
   // Cargar configuración y datos del Excel
   useEffect(() => {
@@ -135,62 +140,74 @@ function TestPlayground() {
   useEffect(() => {
     if (dashboardConfig && excelData) {
       const sendAllData = async () => {
-        // Revenue Card
+        // Función para convertir fecha de Excel
+        const convertExcelDate = (excelDate: number) => {
+          const jsDate = new Date((excelDate - 25569) * 86400 * 1000);
+          const month = String(jsDate.getMonth() + 1).padStart(2, '0');
+          const day = String(jsDate.getDate()).padStart(2, '0');
+          const year = jsDate.getFullYear();
+          return `${month}/${day}/${year}`;
+        };
+
+        // Revenue Card - Como estaba antes
         const revenueData = excelData.map(row => 
           dashboardConfig.revenue_value.variables.reduce((acc, variable) => {
             acc[variable] = row[variable];
             return acc;
           }, {} as Record<string, any>)
         );
-        console.log('Enviando a revenue_card:', revenueData);
-        const revenueResponse = await sendDataToFlask('revenue_card', revenueData);
+        const processedRevenueData = processData(revenueData);
+        const revenueResponse = await sendDataToFlask('revenue', processedRevenueData);
         setRevenueData(revenueResponse);
 
-        // Sales Card
+        // Sales Card - Como estaba antes
         const salesData = excelData.map(row => 
           dashboardConfig.sales.variables.reduce((acc, variable) => {
             acc[variable] = row[variable];
             return acc;
           }, {} as Record<string, any>)
         );
-        console.log('Enviando a sales:', salesData);
-        const salesResponse = await sendDataToFlask('sales', salesData);
+        const processedSalesData = processData(salesData);
+        const salesResponse = await sendDataToFlask('sales', processedSalesData);
         setSalesData(salesResponse);
 
-        // Line Chart
+        // Line Chart - Enviar TODAS las variables
         const lineChartData = excelData.map(row => ({
-          date: row[dashboardConfig["line-chart-label"].date],
+          date: convertExcelDate(row[dashboardConfig["line-chart-label"].date]),
           ...dashboardConfig["line-chart-label"].variables.reduce((acc, variable) => {
             acc[variable] = row[variable];
             return acc;
           }, {} as Record<string, any>)
         }));
-        console.log('Enviando a line-chart:', lineChartData);
-        const lineResponse = await sendDataToFlask('line-chart', lineChartData);
+        const processedLineData = processData(lineChartData);
+        const lineResponse = await sendDataToFlask('lineal', processedLineData);
         setLineChartData(lineResponse);
 
-        // Pie Chart
+        // Pie Chart - Enviar TODAS las variables
         const pieChartData = excelData.map(row => ({
-          category: row[dashboardConfig["pie-chart-text"].categories],
+          category: row[dashboardConfig["pie-chart-text"].category],
           ...dashboardConfig["pie-chart-text"].variables.reduce((acc, variable) => {
             acc[variable] = row[variable];
             return acc;
           }, {} as Record<string, any>)
         }));
-        console.log('Enviando a Pie-chart:', pieChartData);
-        const pieResponse = await sendDataToFlask('Pie-chart', pieChartData);
+        const processedPieData = processData(pieChartData);
+        console.log('Datos procesados para pie-chart:', processedPieData);
+        const pieResponse = await sendDataToFlask('pie', processedPieData);
         setPieChartData(pieResponse);
 
-        // Area Chart
+        // Area Chart - Enviar TODAS las variables
         const areaChartData = excelData.map(row => ({
-          date: row[dashboardConfig["area-chart-interactive"].date],
+          date: convertExcelDate(row[dashboardConfig["area-chart-interactive"].date]),
+          category: row[dashboardConfig["pie-chart-text"].category],
           ...dashboardConfig["area-chart-interactive"].variables.reduce((acc, variable) => {
             acc[variable] = row[variable];
             return acc;
           }, {} as Record<string, any>)
         }));
-        console.log('Enviando a area-chart-interactive:', areaChartData);
-        const areaResponse = await sendDataToFlask('area-chart-interactive', areaChartData);
+        const processedAreaData = processData(areaChartData);
+        console.log('Datos procesados para area-chart:', processedAreaData);
+        const areaResponse = await sendDataToFlask('area', processedAreaData);
         setAreaChartData(areaResponse);
       };
 
@@ -203,7 +220,7 @@ function TestPlayground() {
       <div className="grid grid-cols-3 gap-4 h-[400px]">
         <div className="space-y-4">
           <RevenueCard 
-            data={[{ value: revenueData ?? 0 }]} 
+            data={[{ value: revenueData ?? 0 }]}
             variable="value"
           />
           <SalesCard 
@@ -215,7 +232,7 @@ function TestPlayground() {
         <div className="h-full">
           <LineChart 
             data={lineChartData?.map(item => ({
-              date: item.fecha,
+              date: item.mes,
               value: item.valor
             })) || []}
             variables={{
@@ -231,12 +248,12 @@ function TestPlayground() {
 
         <div className="h-full">
           <CircleNumber 
-            data={pieChartData?.map((item: { categoria: string; valor: number }) => ({
-              categoria: item.categoria,
-              valor: item.valor
-            })) || []}
+            data={Object.entries(pieChartData || {}).map(([category, valor]) => ({
+              category,
+              valor: valor as number
+            }))}
             config={{
-              categories: 'categoria',
+              category: 'category',
               y: 'valor'
             }}
           />
@@ -245,12 +262,25 @@ function TestPlayground() {
 
       <div className="h-[300px] mt-4">
         <AreaChartInteractive 
-          data={areaChartData || []}
+          data={excelData?.map((row, index) => {
+            // Convertir el número de Excel a fecha
+            const excelDate = row[dashboardConfig?.["area-chart-interactive"]?.date || ''];
+            const jsDate = new Date((excelDate - 25569) * 86400 * 1000);
+            const month = String(jsDate.getMonth() + 1).padStart(2, '0');
+            const day = String(jsDate.getDate()).padStart(2, '0');
+            const year = jsDate.getFullYear();
+            
+            return {
+              date: `${month}/${day}/${year}`,
+              category: row["Categoria Producto"],
+              value: areaChartData?.[index] || 0
+            };
+          }) || []}
           variables={{
             x: 'date',
-            y: ['value'],
+            y: ['valor'],
             labels: {
-              label1: 'Ventas',
+              label1: dashboardConfig?.["area-chart-interactive"]?.label || 'Ventas',
               label2: 'Tendencia'
             }
           }}

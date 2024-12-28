@@ -1,14 +1,16 @@
 "use client"
 
 import * as React from "react"
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ChartContainer } from "@/components/ui/chart"
+import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface DataPoint {
   date: string;
-  [key: string]: string | number; // Para las categorías dinámicas
+  category: string;
+  value: number;
+  [key: string]: string | number; // Para otras propiedades dinámicas
 }
 
 interface AreaChartProps {
@@ -24,60 +26,40 @@ interface AreaChartProps {
 }
 
 export default function AreaChartInteractive({ data, variables }: AreaChartProps) {
-  const [selectedPeriod, setSelectedPeriod] = React.useState("3m")
-  const categories = Object.keys(data[0] || {}).filter(key => key !== 'date');
+  const [selectedPeriod, setSelectedPeriod] = React.useState("3")
 
-  // Ordenar los datos por fecha primero
-  const sortedData = React.useMemo(() => {
-    return [...data].sort((a, b) => {
-      const dateA = new Date(a.date.split('/').reverse().join('-'));
-      const dateB = new Date(b.date.split('/').reverse().join('-'));
-      return dateA.getTime() - dateB.getTime();
-    });
+  // Obtener categorías únicas
+  const categories = React.useMemo(() => {
+    if (!data?.length) return [];
+    return [...new Set(data.map(item => item.category))];
   }, [data]);
 
+  // Configurar colores para cada categoría
+  const chartConfig = React.useMemo(() => {
+    return categories.reduce((acc, category, index) => {
+      acc[category] = {
+        label: category,
+        color: `hsl(var(--chart-${index + 1}))`
+      };
+      return acc;
+    }, {} as ChartConfig);
+  }, [categories]);
+
+  // Filtrar datos según el período seleccionado
   const filteredData = React.useMemo(() => {
-    if (selectedPeriod === 'all') return sortedData;
+    if (!data || data.length === 0) return [];
+    if (selectedPeriod === 'all') return data;
 
-    // Obtener la fecha más reciente del dataset
-    const dates = sortedData.map(item => {
-      const [month, day, year] = item.date.split('/');
-      return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-    });
-
+    const dates = data.map(item => new Date(item.date));
     const maxDate = new Date(Math.max(...dates.map(date => date.getTime())));
-    const monthsToSubtract = parseInt(selectedPeriod);
-    
-    // Calcular la fecha límite
     const limitDate = new Date(maxDate);
-    limitDate.setMonth(limitDate.getMonth() - monthsToSubtract);
+    limitDate.setMonth(limitDate.getMonth() - parseInt(selectedPeriod));
 
-    return sortedData.filter(item => {
-      const [month, day, year] = item.date.split('/');
-      const itemDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    return data.filter(item => {
+      const itemDate = new Date(item.date);
       return itemDate >= limitDate;
     });
-  }, [sortedData, selectedPeriod]);
-
-  const chartConfig = Object.fromEntries(
-    categories.map(category => [
-      category,
-      {
-        label: category,
-        color: `hsl(var(--chart-${categories.indexOf(category) + 1}))`
-      }
-    ])
-  );
-
-  const monthNames = [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-  ];
-
-  const formatXAxis = (dateStr: string) => {
-    const [month] = dateStr.split('/');
-    return monthNames[parseInt(month) - 1];
-  };
+  }, [data, selectedPeriod]);
 
   return (
     <Card className="w-full h-full">
@@ -99,45 +81,65 @@ export default function AreaChartInteractive({ data, variables }: AreaChartProps
         </Select>
       </CardHeader>
       <CardContent className="h-[calc(100%-4rem)]">
-        <div className="w-full h-full">
-          <ChartContainer config={chartConfig} className="w-full h-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart 
-                data={filteredData} 
-                margin={{ top: 10, right: 30, left: 50, bottom: 10 }}
-              >
-                <XAxis
-                  dataKey="date"
-                  stroke="#888888"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={formatXAxis}
-                />
-                <YAxis
-                  stroke="#888888"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(value) => `$${value}`}
-                />
-                <Tooltip />
-                {categories.map((category) => (
-                  <Area
+        <ChartContainer config={chartConfig} className="w-full h-full">
+          <ResponsiveContainer>
+            <AreaChart data={filteredData}>
+              <defs>
+                {categories.map((category, index) => (
+                  <linearGradient
                     key={category}
-                    type="monotone"
-                    dataKey={category}
-                    stroke={`hsl(var(--chart-${categories.indexOf(category) + 1}))`}
-                    fill={`hsl(var(--chart-${categories.indexOf(category) + 1}))`}
-                    fillOpacity={0.2}
-                    strokeWidth={2}
-                    stackId="1"
-                  />
+                    id={`fill${category}`}
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop
+                      offset="5%"
+                      stopColor={`hsl(var(--chart-${index + 1}))`}
+                      stopOpacity={0.8}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor={`hsl(var(--chart-${index + 1}))`}
+                      stopOpacity={0.1}
+                    />
+                  </linearGradient>
                 ))}
-              </AreaChart>
-            </ResponsiveContainer>
-          </ChartContainer>
-        </div>
+              </defs>
+              <CartesianGrid vertical={false} />
+              <XAxis
+                dataKey="date"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+              />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(value) => `$${value}`}
+              />
+              <ChartTooltip
+                cursor={false}
+                content={<ChartTooltipContent />}
+              />
+              {categories.map((category, index) => (
+                <Area
+                  key={category}
+                  type="monotone"
+                  dataKey="value"
+                  name={category}
+                  fill={`url(#fill${category})`}
+                  stroke={`hsl(var(--chart-${index + 1}))`}
+                  fillOpacity={0.2}
+                  strokeWidth={2}
+                  stackId="1"
+                />
+              ))}
+              <ChartLegend content={<ChartLegendContent />} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </ChartContainer>
       </CardContent>
     </Card>
   );
