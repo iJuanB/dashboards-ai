@@ -9,14 +9,6 @@ interface RevenueCardProps {
 }
 
 export default function RevenueCard({ data, variable }: RevenueCardProps) {
-  console.log('RevenueCard - Datos recibidos de Flask:', {
-    data,
-    variable,
-    dataLength: data?.length,
-    firstItem: data?.[0],
-    calculatedTotal: data.reduce((sum, item) => sum + (Number(item[variable]) || 0), 0)
-  });
-
   // Calcular el total actual
   const total = data.reduce((sum, item) => 
     sum + (Number(item[variable]) || 0), 

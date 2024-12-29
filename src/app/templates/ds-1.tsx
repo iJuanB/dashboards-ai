@@ -1,93 +1,108 @@
 "use client"
 
-import { useEffect, useState } from 'react'
-import * as XLSX from 'xlsx'
-import AreaChartInteractive from "@/app/charts/components/area-chart-interactive"
+import React, { useState } from 'react'
+import RevenueCard from "@/app/charts/components/revenue-card"
+import SalesCard from "@/app/charts/components/sales-card"
 import LineChart from "@/app/charts/components/line-chart"
-import RadialChart from "@/app/charts/components/radia-chart"
 import CircleNumber from "@/app/charts/components/circle-number"
-import { ChartDataPoint } from '@/types/chart-types'
+import AreaChartInteractive from "@/app/charts/components/area-chart-interactive"
+import { Component as PieLegend } from "@/app/charts/components/pie-legend"
+import { DashboardConfig } from "@/types/dashboard-types"
 
-interface APIResponse {
-  success: boolean
-  result: {
-    x: string
-    y: string
-  }
+interface DS1Props {
+  config: DashboardConfig;
+  chartData: {
+    revenueData: any;
+    salesData: any;
+    lineChartData: any;
+    pieChartData: any;
+    areaChartData: any;
+  };
 }
 
-export default function DS1() {
-  const [chartData, setChartData] = useState<ChartDataPoint[]>([])
-  const [variables, setVariables] = useState<{x: string, y: string[]}>({ x: '', y: [] })
+function TestPlayground({ config, chartData }: DS1Props) {
+  const [selectedYear, setSelectedYear] = useState('2023')
+  const availableYears = ['2023', '2024']
 
-  useEffect(() => {
-    async function processData() {
-      try {
-        // 1. Cargar el Excel
-        const response = await fetch('/data/1000-Registros-de-ventas.xlsx')
-        const arrayBuffer = await response.arrayBuffer()
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' })
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet)
+  const handleYearChange = (year: string) => {
+    setSelectedYear(year)
+  }
 
-        // 2. Enviar datos al servidor Flask
-        const flaskResponse = await fetch('http://192.168.20.8:5000/analyze_dashboard', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ data: jsonData })
-        })
-
-        const data: APIResponse = await flaskResponse.json()
-        
-        if (data.success) {
-          setChartData(jsonData as ChartDataPoint[])
-          setVariables({
-            x: data.result.x,
-            y: [data.result.y]
-          })
-        }
-      } catch (error) {
-        console.error('Error processing data:', error)
-      }
-    }
-
-    processData()
-  }, [])
+  console.log('DS-1 Template recibió:', {
+    config,
+    chartData,
+    configKeys: config ? Object.keys(config) : [],
+    chartDataKeys: Object.keys(chartData)
+  })
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <LineChart 
-          data={chartData}
-          variables={{
-            x: variables.x,
-            y: variables.y,
-            labels: {
-              [variables.y[0]]: "Variable Y"
-            }
-          }}
-          title="Análisis de Datos"
-          description={`${variables.x} vs ${variables.y.join(', ')}`}
-        />
-        <RadialChart />
-        <CircleNumber />
+    <div className="h-screen p-4">
+      <div className="grid grid-cols-3 gap-4 h-[400px]">
+        <div className="space-y-4">
+          <RevenueCard 
+            data={[{ value: chartData.revenueData ?? 0 }]}
+            variable="value"
+          />
+          <SalesCard 
+            data={[{ value: chartData.salesData ?? 0 }]}
+            variable="value"
+          />
+        </div>
+
+        <div className="h-full">
+          <LineChart 
+            data={chartData.lineChartData?.map((item: any) => ({
+              date: item.mes,
+              value: item.valor
+            })) || []}
+            variables={{
+              x: 'date',
+              y: ['value'],
+              labels: { value: config?.["line-chart-label"]?.kpi || 'Ventas' }
+            }}
+            selectedYear={selectedYear}
+            availableYears={availableYears}
+            onYearChange={handleYearChange}
+          />
+        </div>
+
+        <div className="h-full">
+          <CircleNumber 
+            data={Object.entries(chartData.pieChartData || {}).map(([category, valor]) => ({
+              category,
+              valor: valor as number
+            }))}
+            config={{
+              category: 'category',
+              y: 'valor'
+            }}
+          />
+        </div>
       </div>
-      <div>
-        <AreaChartInteractive 
-          data={chartData}
-          variables={{
-            x: variables.x,
-            y: variables.y,
-            labels: {
-              [variables.y[0]]: "Variable Y"
-            }
-          }}
-          title="Análisis Temporal"
-          description="Evolución de variables en el tiempo"
-        />
+
+      <div className="mt-4 h-[400px] grid grid-cols-3 gap-4">
+        <div className="col-span-2">
+          <AreaChartInteractive 
+            data={chartData.areaChartData?.map((item: any) => ({
+              date: item.date,
+              valor: item.valor
+            })) || []}
+            variables={{
+              x: 'date',
+              y: ['valor'],
+              labels: {
+                label1: config?.["area-chart-interactive"]?.kpi || 'Ventas',
+                label2: config?.["area-chart-interactive"]?.label || 'por Período'
+              }
+            }}
+          />
+        </div>
+        <div>
+          <PieLegend />
+        </div>
       </div>
     </div>
   )
 }
+
+export default TestPlayground

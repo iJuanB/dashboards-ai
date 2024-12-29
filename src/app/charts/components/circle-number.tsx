@@ -55,7 +55,7 @@ export default function CircleNumber({ data, config }: CircleNumberProps) {
       </CardHeader>
       <CardContent className="flex-1">
         <ChartContainer config={chartConfig} className="w-full h-full">
-          <PieChart width={400} height={300}>
+          <PieChart width={400} height={240}>
             <ChartTooltip
               cursor={false}
               content={<ChartTooltipContent hideLabel />}

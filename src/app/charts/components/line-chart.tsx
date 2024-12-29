@@ -51,8 +51,8 @@ export default function LineChart({
         <ChartContainer config={chartConfig}>
           <RechartsLineChart
             data={data}
-            margin={{ top: 20, left: 40, right: 20, bottom: 20 }}
-            height={350}
+            margin={{ top: 20, left: 40, right: 20, bottom: 10 }}
+            height={280}
           >
             <CartesianGrid vertical={false} />
             <XAxis
