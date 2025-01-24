@@ -10,6 +10,7 @@ import {
   Upload
 } from "lucide-react"
 import * as XLSX from 'xlsx'
+import { useRouter } from "next/navigation"
 
 import {
   Select,
@@ -46,6 +47,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { DashboardConfig } from "@/types/dashboard-types"
+import { ManualGraphsGrid } from "@/components/manual-graphs-grid"
 
 const data = {
   nav: [
@@ -88,8 +90,11 @@ export function SettingsDialog({
   onOpenChange: (open: boolean) => void;
   onDataProcessed: (config: DashboardConfig, chartData: any) => void;
 }) {
+  const router = useRouter()
   const [fileData, setFileData] = useState<any[]>([])
   const [context, setContext] = useState("")
+  const [numGraphs, setNumGraphs] = useState<string>("")
+  const [numTemplates, setNumTemplates] = useState<string>("")
   const [dashboardConfig, setDashboardConfig] = useState<DashboardConfig | null>(null)
   const [chartData, setChartData] = useState({
     revenueData: null,
@@ -99,6 +104,92 @@ export function SettingsDialog({
     areaChartData: null
   })
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleManualGraph = async () => {
+    if (!numGraphs) {
+      alert('Por favor, selecciona cuántos gráficos quieres ver')
+      return
+    }
+    if (!numTemplates) {
+      alert('Por favor, selecciona cuántos templates quieres usar')
+      return
+    }
+
+    // Si hay un archivo cargado, enviarlo a la API
+    if (fileInputRef.current?.files?.length) {
+      const file = fileInputRef.current.files[0]
+      const formData = new FormData()
+      
+      // Agregar el archivo
+      formData.append('file', file)
+      
+      // Agregar los parámetros como JSON string
+      const params = {
+        n_graphs: parseInt(numGraphs),
+        n_template: parseInt(numTemplates),
+        context: context
+      }
+      formData.append('params', JSON.stringify(params))
+
+      // Agregar console.log para ver los datos
+      console.log('Enviando a la API:', {
+        file: file,
+        params: params
+      })
+
+      try {
+        const response = await fetch('http://localhost:8000/upload-database', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (!response.ok) {
+          throw new Error(`Error al subir el archivo: ${response.statusText}`)
+        }
+
+        const result = await response.json()
+        console.log('Respuesta de FastAPI (sin procesar):', result)
+        
+        // Asegurarse de que result es un array antes de guardarlo
+        if (!Array.isArray(result)) {
+          throw new Error('La respuesta de la API no es un array')
+        }
+
+        // Combinar todos los objetos del array en uno solo, manejando duplicados
+        const combinedVariables = result.reduce((acc, item) => {
+          const [key] = Object.keys(item)
+          // Si la clave ya existe, concatenar los arrays
+          if (acc[key]) {
+            acc[key] = [...new Set([...acc[key], ...item[key]])]
+          } else {
+            acc[key] = item[key]
+          }
+          return acc
+        }, {} as Record<string, string[]>)
+
+        console.log('Variables combinadas:', combinedVariables)
+
+        // Guardar el objeto combinado en localStorage
+        localStorage.setItem('graphVariables', JSON.stringify(combinedVariables))
+        
+        // Guardar también los datos del archivo
+        localStorage.setItem('fileData', JSON.stringify(fileData))
+
+        console.log('Variables guardadas para los gráficos:', {
+          graphVariables: combinedVariables,
+          fileData: fileData,
+          graphVariablesString: JSON.stringify(combinedVariables)
+        })
+      } catch (error) {
+        console.error('Error al subir el archivo:', error)
+        alert('Error al subir el archivo. Por favor, intenta de nuevo.')
+        return
+      }
+    }
+
+    onOpenChange(false)
+    router.push(`/dashboard/data/manual?graphs=${numGraphs}&templates=${numTemplates}`)
+  }
 
   // Función para procesar los primeros 5 registros
   const processFirstFiveRecords = (data: any[]): Record<string, any[]> => {
@@ -397,21 +488,52 @@ export function SettingsDialog({
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <Select>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Selecciona categoría" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ventas">Ventas</SelectItem>
-                      <SelectItem value="financiero">Financiero</SelectItem>
-                      <SelectItem value="marketing">Marketing</SelectItem>
-                      <SelectItem value="rrhh">Recursos Humanos</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="space-y-4 flex-1 mr-4">
+                    <div className="space-y-2">
+                      <Label>¿Cuántos gráficos quieres ver?</Label>
+                      <Select value={numGraphs} onValueChange={setNumGraphs}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona cantidad" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[1,2,3,4,5,6,7,8,9].map((num) => (
+                            <SelectItem key={num} value={num.toString()}>
+                              {num}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                  <Button onClick={handleNext}>
-                    Siguiente
-                  </Button>
+                    <div className="space-y-2">
+                      <Label>¿Cuántos templates quieres usar?</Label>
+                      <Select value={numTemplates} onValueChange={setNumTemplates}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona cantidad" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[1,2,3,4,5].map((num) => (
+                            <SelectItem key={num} value={num.toString()}>
+                              {num}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <Button onClick={handleNext} className="w-[180px]">
+                      Graficar con IA
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={handleManualGraph}
+                      className="w-[180px]"
+                    >
+                      Graficar manualmente
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -419,5 +541,32 @@ export function SettingsDialog({
         </SidebarProvider>
       </DialogContent>
     </Dialog>
+  )
+}
+
+export function LoadData({ onClose }: { onClose: () => void }) {
+  const [isOpen, setIsOpen] = React.useState(true)
+
+  const handleDataProcessed = (config: DashboardConfig, chartData: any) => {
+    // Aquí puedes manejar los datos procesados
+    console.log('Datos procesados:', { config, chartData })
+    // Cerrar el diálogo cuando los datos se hayan procesado
+    handleClose()
+  }
+
+  const handleClose = () => {
+    setIsOpen(false)
+    onClose()
+  }
+
+  return (
+    <SettingsDialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) handleClose()
+        else setIsOpen(true)
+      }}
+      onDataProcessed={handleDataProcessed}
+    />
   )
 }
